@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>共享日历 · 团队工作安排</title>
+    <meta name="description" content="团队共享日历，轻松管理和查看每日工作安排">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Arial', 'sans-serif'],
+                    },
+                    colors: {
+                        apple: {
+                            bg: '#f5f5f7',
+                            card: '#ffffff',
+                            text: '#1d1d1f',
+                            secondary: '#86868b',
+                            blue: '#0071e3',
+                            bluehover: '#0077ED',
+                            green: '#34c759',
+                            red: '#ff3b30',
+                            orange: '#ff9500',
+                            purple: '#af52de',
+                            border: '#d2d2d7',
+                            lightborder: '#e8e8ed',
+                        },
+                        heat: {
+                            0: '#f5f5f7',
+                            1: '#d1e8ff',
+                            2: '#a3d1ff',
+                            3: '#5ba8f5',
+                            4: '#0071e3',
+                            5: '#004eac',
+                        }
+                    },
+                    boxShadow: {
+                        'apple': '0 2px 12px rgba(0,0,0,0.08)',
+                        'apple-lg': '0 4px 24px rgba(0,0,0,0.12)',
+                        'apple-xl': '0 8px 40px rgba(0,0,0,0.16)',
+                    },
+                    borderRadius: {
+                        'apple': '12px',
+                        'apple-lg': '16px',
+                        'apple-xl': '20px',
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+            background: #f5f5f7;
+            color: #1d1d1f;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overflow-x: hidden;
+        }
+
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d2d2d7;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #86868b;
+        }
+
+        /* 页面切换动画 */
+        .page-transition {
+            animation: fadeSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 模态框动画 */
+        .modal-overlay {
+            animation: fadeIn 0.2s ease-out;
+        }
+        .modal-content {
+            animation: scaleIn 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.95) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        /* 日历格子悬浮效果 */
+        .calendar-cell {
+            transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            cursor: pointer;
+            position: relative;
+        }
+        .calendar-cell:hover {
+            transform: scale(1.08);
+            z-index: 10;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        }
+        .calendar-cell.today {
+            ring: 2px;
+        }
+
+        /* 日期热力颜色 */
+        .heat-0 { background: #f5f5f7; }
+        .heat-1 { background: #dbeafe; }
+        .heat-2 { background: #93c5fd; }
+        .heat-3 { background: #3b82f6; color: white; }
+        .heat-4 { background: #1d4ed8; color: white; }
+        .heat-5 { background: #1e3a5f; color: white; }
+
+        /* 用户头像 */
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 13px;
+            color: white;
+            flex-shrink: 0;
+            letter-spacing: -0.5px;
+        }
+        .avatar-sm {
+            width: 24px;
+            height: 24px;
+            font-size: 10px;
+        }
+        .avatar-lg {
+            width: 48px;
+            height: 48px;
+            font-size: 18px;
+        }
+
+        /* 输入框焦点动画 */
+        .input-apple {
+            transition: all 0.25s ease;
+            border: 1.5px solid #d2d2d7;
+        }
+        .input-apple:focus {
+            border-color: #0071e3;
+            box-shadow: 0 0 0 3px rgba(0,113,227,0.15);
+            outline: none;
+        }
+
+        /* 按钮点击反馈 */
+        .btn-apple {
+            transition: all 0.2s ease;
+        }
+        .btn-apple:active {
+            transform: scale(0.97);
+        }
+
+        /* 日程条目动画 */
+        .schedule-item {
+            animation: slideIn 0.3s ease-out;
+            transition: all 0.2s ease;
+        }
+        .schedule-item:hover {
+            background: #f0f0f5 !important;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-8px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* 颜色选择器 */
+        .color-option {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2.5px solid transparent;
+        }
+        .color-option:hover {
+            transform: scale(1.15);
+        }
+        .color-option.selected {
+            border-color: #1d1d1f;
+            transform: scale(1.15);
+        }
+
+        /* Toast 通知 */
+        .toast {
+            animation: toastIn 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .toast-out {
+            animation: toastOut 0.25s ease-in forwards;
+        }
+        @keyframes toastOut {
+            to { opacity: 0; transform: translateY(20px) scale(0.95); }
+        }
+
+        /* 骨架屏动画 */
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* 底部导航栏 */
+        .nav-item {
+            transition: all 0.2s ease;
+        }
+        .nav-item.active {
+            color: #0071e3;
+        }
+        .nav-item:not(.active) {
+            color: #86868b;
+        }
+
+        /* 微型日历格子（热力图模式） */
+        .mini-cell {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            transition: all 0.15s ease;
+        }
+        .mini-cell:hover {
+            transform: scale(1.3);
+        }
+
+        /* 脉冲指示器 */
+        .pulse-dot {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* 空状态插图 */
+        .empty-state {
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-apple-bg">
+
+    <!-- ========== Toast 通知容器 ========== -->
+    <div id="toast-container" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-2 items-center pointer-events-none"></div>
+
+    <!-- ========== 登录/注册页面 ========== -->
+    <div id="auth-page" class="min-h-screen flex items-center justify-center px-5 py-10">
+        <div class="w-full max-w-sm page-transition">
+            <!-- Logo -->
+            <div class="text-center mb-10">
+                <div class="inline-flex items-center justify-center w-20 h-20 rounded-[22px] bg-gradient-to-br from-blue-500 to-indigo-600 shadow-apple-lg mb-5">
+                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold tracking-tight text-apple-text">共享日历</h1>
+                <p class="text-apple-secondary text-sm mt-1.5">团队工作安排，尽在掌握</p>
+            </div>
+
+            <!-- 登录表单 -->
+            <div id="login-form" class="bg-white rounded-apple-xl shadow-apple p-7">
+                <h2 class="text-lg font-semibold mb-5 text-apple-text">登录</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-apple-secondary mb-1.5">用户名</label>
+                        <input id="login-username" type="text" placeholder="请输入用户名"
+                            class="input-apple w-full px-4 py-3 rounded-apple bg-apple-bg text-sm font-medium text-apple-text placeholder:text-apple-secondary/50">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-apple-secondary mb-1.5">密码</label>
+                        <input id="login-password" type="password" placeholder="请输入密码"
+                            class="input-apple w-full px-4 py-3 rounded-apple bg-apple-bg text-sm font-medium text-apple-text placeholder:text-apple-secondary/50">
+                    </div>
+                    <button id="login-btn" onclick="handleLogin()"
+                        class="btn-apple w-full py-3 bg-apple-blue text-white rounded-apple font-semibold text-sm hover:bg-apple-bluehover">
+                        登录
+                    </button>
+                </div>
+                <div class="mt-5 text-center">
+                    <span class="text-xs text-apple-secondary">还没有账号？</span>
+                    <button onclick="showRegister()" class="text-xs text-apple-blue font-semibold ml-1 hover:underline">注册</button>
+                </div>
+            </div>
+
+            <!-- 注册表单 -->
+            <div id="register-form" class="bg-white rounded-apple-xl shadow-apple p-7 hidden">
+                <h2 class="text-lg font-semibold mb-5 text-apple-text">注册</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-apple-secondary mb-1.5">用户名</label>
+                        <input id="reg-username" type="text" placeholder="请输入用户名"
+                            class="input-apple w-full px-4 py-3 rounded-apple bg-apple-bg text-sm font-medium text-apple-text placeholder:text-apple-secondary/50">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-apple-secondary mb-1.5">昵称</label>
+                        <input id="reg-nickname" type="text" placeholder="请输入您的昵称"
+                            class="input-apple w-full px-4 py-3 rounded-apple bg-apple-bg text-sm font-medium text-apple-text placeholder:text-apple-secondary/50">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-apple-secondary mb-1.5">密码</label>
+                        <input id="reg-password" type="password" placeholder="请设置密码"
+                            class="input-apple w-full px-4 py-3 rounded-apple bg-apple-bg text-sm font-medium text-apple-text placeholder:text-apple-secondary/50">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-apple-secondary mb-1.5">选择头像颜色</label>
+                        <div id="color-picker" class="flex gap-2.5 mt-1">
+                            <div class="color-option selected" data-color="#6366f1" style="background:#6366f1" onclick="selectColor(this)"></div>
+                            <div class="color-option" data-color="#0071e3" style="background:#0071e3" onclick="selectColor(this)"></div>
+                            <div class="color-option" data-color="#34c759" style="background:#34c759" onclick="selectColor(this)"></div>
+                            <div class="color-option" data-color="#ff9500" style="background:#ff9500" onclick="selectColor(this)"></div>
+                            <div class="color-option" data-color="#ff3b30" style="background:#ff3b30" onclick="selectColor(this)"></div>
+                            <div class="color-option" data-color="#af52de" style="background:#af52de" onclick="selectColor(this)"></div>
+                            <div class="color-option" data-color="#30b0c7" style="background:#30b0c7" onclick="selectColor(this)"></div>
+                            <div class="color-option" data-color="#ff6482" style="background:#ff6482" onclick="selectColor(this)"></div>
+                        </div>
+                    </div>
+                    <button id="register-btn" onclick="handleRegister()"
+                        class="btn-apple w-full py-3 bg-apple-blue text-white rounded-apple font-semibold text-sm hover:bg-apple-bluehover">
+                        注册
+                    </button>
+                </div>
+                <div class="mt-5 text-center">
+                    <span class="text-xs text-apple-secondary">已有账号？</span>
+                    <button onclick="showLogin()" class="text-xs text-apple-blue font-semibold ml-1 hover:underline">登录</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 主界面 ========== -->
+    <div id="main-app" class="hidden min-h-screen pb-20">
+
+        <!-- 顶部导航 -->
+        <header class="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-apple-lightborder">
+            <div class="max-w-lg mx-auto px-5 h-14 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div id="header-avatar" class="avatar avatar-sm"></div>
+                    <span id="header-nickname" class="text-sm font-semibold text-apple-text"></span>
+                </div>
+                <button onclick="handleLogout()" class="text-xs text-apple-secondary hover:text-apple-red transition-colors font-medium">
+                    退出
+                </button>
+            </div>
+        </header>
+
+        <!-- ====== 日历视图 ====== -->
+        <div id="view-calendar" class="max-w-lg mx-auto px-5 pt-5 page-transition">
+
+            <!-- 月份选择器 -->
+            <div class="flex items-center justify-between mb-5">
+                <button onclick="prevMonth()" class="w-9 h-9 rounded-full bg-white shadow-apple flex items-center justify-center hover:bg-gray-50 btn-apple">
+                    <svg class="w-4 h-4 text-apple-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                </button>
+                <div class="text-center">
+                    <h2 id="current-month-label" class="text-xl font-bold text-apple-text tracking-tight"></h2>
+                    <button onclick="goToToday()" class="text-xs text-apple-blue font-medium mt-0.5 hover:underline">今天</button>
+                </div>
+                <button onclick="nextMonth()" class="w-9 h-9 rounded-full bg-white shadow-apple flex items-center justify-center hover:bg-gray-50 btn-apple">
+                    <svg class="w-4 h-4 text-apple-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- 星期标题 -->
+            <div class="grid grid-cols-7 gap-1.5 mb-1.5">
+                <div class="text-center text-[11px] font-semibold text-apple-secondary py-1">日</div>
+                <div class="text-center text-[11px] font-semibold text-apple-secondary py-1">一</div>
+                <div class="text-center text-[11px] font-semibold text-apple-secondary py-1">二</div>
+                <div class="text-center text-[11px] font-semibold text-apple-secondary py-1">三</div>
+                <div class="text-center text-[11px] font-semibold text-apple-secondary py-1">四</div>
+                <div class="text-center text-[11px] font-semibold text-apple-secondary py-1">五</div>
+                <div class="text-center text-[11px] font-semibold text-apple-secondary py-1">六</div>
+            </div>
+
+            <!-- 日历网格 -->
+            <div id="calendar-grid" class="grid grid-cols-7 gap-1.5 mb-6"></div>
+
+            <!-- 热力图图例 -->
+            <div class="flex items-center justify-center gap-2 mb-6">
+                <span class="text-[10px] text-apple-secondary font-medium">少</span>
+                <div class="mini-cell heat-0 border border-apple-lightborder"></div>
+                <div class="mini-cell heat-1"></div>
+                <div class="mini-cell heat-2"></div>
+                <div class="mini-cell heat-3"></div>
+                <div class="mini-cell heat-4"></div>
+                <div class="mini-cell heat-5"></div>
+                <span class="text-[10px] text-apple-secondary font-medium">多</span>
+            </div>
+
+            <!-- 选中日期详情 -->
+            <div id="selected-day-panel" class="bg-white rounded-apple-xl shadow-apple overflow-hidden mb-5 hidden">
+                <!-- 日期标题 -->
+                <div class="px-5 py-4 border-b border-apple-lightborder flex items-center justify-between">
+                    <div>
+                        <h3 id="selected-date-title" class="text-base font-bold text-apple-text"></h3>
+                        <p id="selected-date-weekday" class="text-xs text-apple-secondary mt-0.5"></p>
+                    </div>
+                    <button onclick="showAddScheduleModal()" class="w-8 h-8 rounded-full bg-apple-blue text-white flex items-center justify-center hover:bg-apple-bluehover btn-apple shadow-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+                        </svg>
+                    </button>
+                </div>
+                <!-- 日程列表 -->
+                <div id="schedule-list" class="divide-y divide-apple-lightborder"></div>
+                <!-- 空状态 -->
+                <div id="schedule-empty" class="py-10 text-center hidden">
+                    <div class="empty-state inline-block mb-3">
+                        <svg class="w-12 h-12 text-apple-border mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                        </svg>
+                    </div>
+                    <p class="text-sm text-apple-secondary">暂无安排</p>
+                    <button onclick="showAddScheduleModal()" class="text-xs text-apple-blue font-semibold mt-2 hover:underline">添加第一条</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====== 热力图视图 ====== -->
+        <div id="view-heatmap" class="max-w-lg mx-auto px-5 pt-5 hidden page-transition">
+            <h2 class="text-xl font-bold text-apple-text mb-1 tracking-tight">活动热力图</h2>
+            <p class="text-sm text-apple-secondary mb-5">颜色越深表示当日安排越多</p>
+
+            <!-- 年份选择 -->
+            <div class="flex items-center justify-center gap-4 mb-5">
+                <button onclick="prevHeatmapYear()" class="w-8 h-8 rounded-full bg-white shadow-apple flex items-center justify-center hover:bg-gray-50 btn-apple">
+                    <svg class="w-3.5 h-3.5 text-apple-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                </button>
+                <span id="heatmap-year-label" class="text-lg font-bold text-apple-text"></span>
+                <button onclick="nextHeatmapYear()" class="w-8 h-8 rounded-full bg-white shadow-apple flex items-center justify-center hover:bg-gray-50 btn-apple">
+                    <svg class="w-3.5 h-3.5 text-apple-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- 季度热力图 -->
+            <div id="heatmap-container" class="space-y-6"></div>
+
+            <!-- 图例 -->
+            <div class="flex items-center justify-center gap-2 mt-6 mb-4">
+                <span class="text-[10px] text-apple-secondary font-medium">少</span>
+                <div class="mini-cell heat-0 border border-apple-lightborder"></div>
+                <div class="mini-cell heat-1"></div>
+                <div class="mini-cell heat-2"></div>
+                <div class="mini-cell heat-3"></div>
+                <div class="mini-cell heat-4"></div>
+                <div class="mini-cell heat-5"></div>
+                <span class="text-[10px] text-apple-secondary font-medium">多</span>
+            </div>
+        </div>
+
+        <!-- ====== 团队视图 ====== -->
+        <div id="view-team" class="max-w-lg mx-auto px-5 pt-5 hidden page-transition">
+            <h2 class="text-xl font-bold text-apple-text mb-1 tracking-tight">团队成员</h2>
+            <p class="text-sm text-apple-secondary mb-5">查看所有协作者</p>
+            <div id="team-list" class="space-y-3"></div>
+        </div>
+
+        <!-- 底部导航栏 -->
+        <nav class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-apple-lightborder z-50">
+            <div class="max-w-lg mx-auto px-5 h-16 flex items-center justify-around">
+                <button onclick="switchView('calendar')" class="nav-item active flex flex-col items-center gap-0.5" id="nav-calendar">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    <span class="text-[10px] font-semibold">日历</span>
+                </button>
+                <button onclick="switchView('heatmap')" class="nav-item flex flex-col items-center gap-0.5" id="nav-heatmap">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                    </svg>
+                    <span class="text-[10px] font-semibold">热力图</span>
+                </button>
+                <button onclick="switchView('team')" class="nav-item flex flex-col items-center gap-0.5" id="nav-team">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    </svg>
+                    <span class="text-[10px] font-semibold">团队</span>
+                </button>
+            </div>
+        </nav>
+    </div>
+
+    <!-- ========== 添加日程模态框 ========== -->
+    <div id="add-schedule-modal" class="fixed inset-0 z-[100] hidden">
+        <div class="modal-overlay absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeAddScheduleModal()"></div>
+        <div class="modal-content absolute bottom-0 left-0 right-0 bg-white rounded-t-[24px] p-6 pb-8 max-w-lg mx-auto">
+            <div class="w-10 h-1 bg-apple-border rounded-full mx-auto mb-5"></div>
+            <h3 class="text-lg font-bold text-apple-text mb-1">添加工作安排</h3>
+            <p id="modal-date-label" class="text-sm text-apple-secondary mb-5"></p>
+            <textarea id="schedule-input" rows="4" placeholder="请输入今天的主要工作内容..."
+                class="input-apple w-full px-4 py-3 rounded-apple bg-apple-bg text-sm font-medium text-apple-text placeholder:text-apple-secondary/50 resize-none"></textarea>
+            <div class="flex gap-3 mt-5">
+                <button onclick="closeAddScheduleModal()" class="btn-apple flex-1 py-3 bg-apple-bg text-apple-text rounded-apple font-semibold text-sm hover:bg-gray-200">
+                    取消
+                </button>
+                <button onclick="handleAddSchedule()" id="add-schedule-btn" class="btn-apple flex-1 py-3 bg-apple-blue text-white rounded-apple font-semibold text-sm hover:bg-apple-bluehover">
+                    添加
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app_v3.js"></script>
+</body>
+</html>
